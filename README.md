@@ -31,3 +31,9 @@ Look ma, no ~~hands~~ VirtualAllocEx!
 
 <img width="535" height="440" alt="image" src="https://github.com/user-attachments/assets/d7909303-b56b-44b7-a7db-68f990712bb9" />
 
+## VT
+Only 5/70 hits at the time of release. I was expecting way more. 
+https://www.virustotal.com/gui/file/e7dd9c2d8ae6d2848beed22f3ce48a926f7c08a1e36de04c7ef857498605b635/detection
+
+<img width="1797" height="1023" alt="image" src="https://github.com/user-attachments/assets/6cf0be9d-bec6-438c-9129-3500223cd2fa" />
+
