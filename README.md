@@ -26,3 +26,8 @@ You can see that the entropy is at 5.8 for the .text section, well below the 6.5
 MaleDiction.exe:
 <img width="998" height="723" alt="image" src="https://github.com/user-attachments/assets/a1c79590-dca4-4e93-afec-a47afc30fc44" />
 
+## Dynamic resolution of APIs
+Look ma, no ~~hands~~ VirtualAllocEx!
+
+<img width="535" height="440" alt="image" src="https://github.com/user-attachments/assets/d7909303-b56b-44b7-a7db-68f990712bb9" />
+
