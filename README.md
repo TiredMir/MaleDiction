@@ -1,5 +1,6 @@
 # MaleDiction
-An injector with Shellcode encoding and API call obfuscation using WSummerhill's Diction method
+An injector with Shellcode encoding and API call obfuscation using WSummerhill's Diction method.
+This is for educational purposes only. Also I'm not very good at it either.
 
 ## Root cause
 A while ago, I saw Will Summerhill's 2024 Sector demo found [here](https://2024.video.sector.ca/video/1035786402), and I found the [DictionShellcode](https://github.com/wsummerhill/DictionShellcode/) part hilarious. It basically encodes your shellcode with regular English words so that they're obfuscated while not raising the Entropy score that would make some AVs/EDRs suspicious, according to him. This also has the benefit of not using XOR/AES/RC4 libraries and signatures that are frowned upon by AVs/EDRs. Take a look at [his repo](https://github.com/wsummerhill/DictionShellcode/), it's awesome.
